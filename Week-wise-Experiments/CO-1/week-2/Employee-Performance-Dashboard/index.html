@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Employee Dashboard</title>
+  <!-- jsPDF CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f4f4;
+    }
+    .container {
+      width: 70%;
+      margin: 40px auto;
+      text-align: center;
+    }
+    .title {
+      font-size: 28px;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 5px;
+      border-radius: 20px;
+      border: none;
+      background: green;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: darkgreen;
+    }
+    .search-box {
+      width: 60%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+    }
+    table {
+      width: 100%;
+      background: white;
+      border-collapse: collapse;
+    }
+    th {
+      background: blue;
+      color: white;
+      padding: 10px;
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="title">Employee Performance Dashboard</h1>
+    <div class="btn-group">
+      <button onclick="addEmployee()">Add Employee</button>
+      <button onclick="updateScore()">Update Score</button>
+      <button onclick="downloadPDF()">Download PDF</button>
+    </div>
+    <div id="app"></div>
+  </div>
+
+  <script>
+    // ─────────────────────────────
+    // STATE
+    // ─────────────────────────────
+    var state = {
+      employees: [
+        { id: 1, name: "John", score: 70, present: true },
+        { id: 2, name: "Sara", score: 85, present: false }
+      ],
+      allEmployees: [
+        { id: 1, name: "John", score: 70, present: true },
+        { id: 2, name: "Sara", score: 85, present: false }
+      ]
+    };
+
+    var listeners = [];
+
+    function subscribe(listener) {
+      listeners.push(listener);
+    }
+
+    function setState(newState) {
+      state = Object.assign({}, state, newState); // immutability
+      listeners.forEach(function(l) { l(); });
+    }
+
+    // ─────────────────────────────
+    // RENDERER (Virtual DOM string compare)
+    // ─────────────────────────────
+    var previousVDOM = "";
+
+    function render(vdom, container) {
+      if (vdom !== previousVDOM) {
+        container.innerHTML = vdom;
+        previousVDOM = vdom;
+        console.log("UI Updated");
+      } else {
+        console.log("No Change");
+      }
+    }
+
+    // ─────────────────────────────
+    // EMPLOYEE LIST COMPONENT
+    // ─────────────────────────────
+    function EmployeeList(employees) {
+      var rows = employees.map(function(emp) {
+        return (
+          "<tr>" +
+            "<td>" + emp.id + "</td>" +
+            "<td>" + emp.name + "</td>" +
+            "<td>" + emp.score + "</td>" +
+            "<td>" +
+              "<button onclick=\"toggleAttendance(" + emp.id + ")\">" +
+                (emp.present ? "Present" : "Absent") +
+              "</button>" +
+            "</td>" +
+            "<td>" +
+              "<button onclick=\"editEmployee(" + emp.id + ")\">Edit Name</button>" +
+              "<button onclick=\"updateScore(" + emp.id + ")\">Edit Score</button>" +
+              "<button onclick=\"deleteEmployee(" + emp.id + ")\">Delete</button>" +
+            "</td>" +
+          "</tr>"
+        );
+      }).join("");
+
+      return (
+        "<input type=\"text\" placeholder=\"Search Employee...\" " +
+          "onkeyup=\"searchEmployee(this.value)\" class=\"search-box\" />" +
+        "<table>" +
+          "<thead><tr>" +
+            "<th>ID</th><th>Name</th><th>Score</th><th>Attendance</th><th>Actions</th>" +
+          "</tr></thead>" +
+          "<tbody>" + rows + "</tbody>" +
+        "</table>"
+      );
+    }
+
+    // ─────────────────────────────
+    // APP
+    // ─────────────────────────────
+    var root = document.getElementById("app");
+
+    function App() {
+      return EmployeeList(state.employees);
+    }
+
+    function updateUI() {
+      render(App(), root);
+    }
+
+    subscribe(updateUI);
+
+    // ─────────────────────────────
+    // CONTROLS
+    // ─────────────────────────────
+
+    // Add Employee
+    function addEmployee() {
+      var name = prompt("Enter Name:");
+      if (!name) return;
+      var ids = state.allEmployees.map(function(e) { return e.id; });
+      var newId = ids.length ? Math.max.apply(null, ids) + 1 : 1;
+      var newEmp = { id: newId, name: name, score: 50, present: true };
+      var updated = state.allEmployees.concat([newEmp]);
+      setState({ employees: updated, allEmployees: updated });
+    }
+
+    // Update Score
+    function updateScore(id) {
+      if (!id) {
+        id = Number(prompt("Enter Employee ID:"));
+      }
+      var newScore = prompt("Enter New Score:");
+      if (!id || newScore === null) return;
+      var updated = state.allEmployees.map(function(emp) {
+        return emp.id === id ? Object.assign({}, emp, { score: Number(newScore) }) : emp;
+      });
+      setState({ employees: updated, allEmployees: updated });
+    }
+
+    // Edit Name
+    function editEmployee(id) {
+      var name = prompt("Enter new name:");
+      var updated = state.allEmployees.map(function(emp) {
+        return emp.id === id ? Object.assign({}, emp, { name: name || emp.name }) : emp;
+      });
+      setState({ employees: updated, allEmployees: updated });
+    }
+
+    // Toggle Attendance
+    function toggleAttendance(id) {
+      var updated = state.allEmployees.map(function(emp) {
+        return emp.id === id ? Object.assign({}, emp, { present: !emp.present }) : emp;
+      });
+      setState({ employees: updated, allEmployees: updated });
+    }
+
+    // Search
+    function searchEmployee(query) {
+      query = query.toLowerCase();
+      if (query === "") {
+        setState({ employees: state.allEmployees.slice() });
+        return;
+      }
+      var filtered = state.allEmployees.filter(function(emp) {
+        return emp.name.toLowerCase().indexOf(query) !== -1;
+      });
+      setState({ employees: filtered });
+    }
+
+    // Delete
+    function deleteEmployee(id) {
+      var updated = state.allEmployees.filter(function(emp) { return emp.id !== id; });
+      setState({ employees: updated, allEmployees: updated });
+    }
+
+    // Download PDF
+    function downloadPDF() {
+      var jsPDF = window.jspdf.jsPDF;
+      var doc = new jsPDF();
+      doc.text("Employee Report", 14, 10);
+      var tableData = state.employees.map(function(emp) {
+        return [emp.id, emp.name, emp.score, emp.present ? "Present" : "Absent"];
+      });
+      doc.autoTable({
+        head: [["ID", "Name", "Score", "Attendance"]],
+        body: tableData
+      });
+      doc.save("employees.pdf");
+    }
+
+    // ─────────────────────────────
+    // INIT
+    // ─────────────────────────────
+    updateUI();
+  </script>
+</body>
+</html>
